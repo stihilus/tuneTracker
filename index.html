@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TuneTracker - Your Personal Radio Station Browser</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="favicon.png">
+    
+    <!-- Primary Meta Tags -->
+    <meta name="title" content="TuneTracker - Your Personal Radio Station Browser">
+    <meta name="description" content="Discover and listen to radio stations worldwide. Create your favorites list and enjoy music from various genres including rock, jazz, electronic, and more.">
+    <meta name="keywords" content="radio, music, streaming, online radio, radio stations, music player, internet radio">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://tunetracker.app/">
+    <meta property="og:title" content="TuneTracker - Your Personal Radio Station Browser">
+    <meta property="og:description" content="Discover and listen to radio stations worldwide. Create your favorites list and enjoy music from various genres.">
+    <meta property="og:image" content="https://i.ibb.co/yycZrYw/share-Image.png">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://tunetracker.app/">
+    <meta property="twitter:title" content="TuneTracker - Your Personal Radio Station Browser">
+    <meta property="twitter:description" content="Discover and listen to radio stations worldwide. Create your favorites list and enjoy music from various genres.">
+    <meta property="twitter:image" content="https://i.ibb.co/yycZrYw/share-Image.png">
+    
+    <!-- Theme Color -->
+    <meta name="theme-color" content="#ffffff">
+    
+    <!-- Mobile App Capable -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    
+    <style>
+        @font-face {
+            font-family: 'DepartureMono';
+            src: url('DepartureMono-Regular.otf') format('opentype');
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'DepartureMono', monospace;
+            background-image: url('background.png');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .player-container {
+            width: 100%;
+            max-width: 400px;
+            height: 100vh;
+            max-height: 800px;
+            background: #fff;
+            border: 1.5px solid #000;
+            border-radius: 2px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .player-header {
+            padding: 15px;
+            border-bottom: 1.5px solid #000;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .now-playing {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 15px;
+            background: #fff;
+        }
+
+        .controls {
+            padding: 15px;
+            border-bottom: 1.5px solid #000;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .categories {
+            flex: 1;
+            overflow-y: auto;
+            display: block;
+        }
+
+        .categories::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .categories::-webkit-scrollbar-track {
+            background: #fff;
+        }
+
+        .categories::-webkit-scrollbar-thumb {
+            background-color: #000;
+            border: 1px solid #fff;
+        }
+
+        .station-list {
+            flex: 1;
+            overflow-y: auto;
+            list-style: none;
+            display: none;
+            scrollbar-width: thin;
+            scrollbar-color: #000 #fff;
+        }
+
+        .station-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .station-list::-webkit-scrollbar-track {
+            background: #fff;
+        }
+
+        .station-list::-webkit-scrollbar-thumb {
+            background-color: #000;
+            border: 1px solid #fff;
+        }
+
+        .station, .category {
+            padding: 12px 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #eee;
+            font-size: 0.9em;
+            transition: background-color 0.2s;
+            font-family: 'DepartureMono', monospace;
+        }
+
+        .station:hover, .category:hover {
+            background-color: #f5f5f5;
+        }
+
+        .station.playing {
+            background-color: #f0f0f0;
+        }
+
+        .station-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .station-info {
+            font-size: 0.8em;
+            opacity: 0.7;
+        }
+
+        .heart {
+            cursor: pointer;
+            user-select: none;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+        }
+
+        .heart.active {
+            opacity: 1;
+        }
+
+        .back-btn {
+            padding: 15px;
+            cursor: pointer;
+            border-bottom: 1.5px solid #000;
+            display: none;
+            flex-shrink: 0;
+        }
+
+        .back-btn:hover {
+            background-color: #f5f5f5;
+        }
+
+        .control-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 24px;
+            padding: 5px;
+            transition: opacity 0.2s;
+        }
+
+        .control-btn:hover {
+            opacity: 0.7;
+        }
+
+        .logo {
+            height: 50px;
+            width: auto;
+            margin-bottom: 10px;
+        }
+
+        #current-track {
+            font-size: 1em;
+            text-align: center;
+            font-family: 'DepartureMono', monospace;
+        }
+
+        @media (max-height: 600px) {
+            .player-container {
+                height: 100vh;
+                max-height: none;
+                border-radius: 0;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .player-container {
+                width: 100%;
+                height: 100vh;
+                max-height: none;
+                border: none;
+                border-radius: 0;
+            }
+            
+            body {
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="player-container">
+        <div class="player-header">
+            <div class="now-playing">
+                <img src="TuneTracker.svg" alt="TuneTracker Logo" class="logo">
+                <div id="current-track">Select a station</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="control-btn" id="prev" onclick="playPreviousStation()">⏮</button>
+            <button class="control-btn" id="play" style="font-size: 28px;">⏵</button>
+            <button class="control-btn" id="next" onclick="playNextStation()">⏭</button>
+        </div>
+
+        <div class="back-btn">← BACK</div>
+        
+        <div class="categories">
+            <div class="category" data-category="favorites">FAVORITES</div>
+            <div class="category" data-category="metal">METAL</div>
+            <div class="category" data-category="ambient">AMBIENT</div>
+            <div class="category" data-category="electronic">ELECTRONIC</div>
+            <div class="category" data-category="classical">CLASSICAL</div>
+            <div class="category" data-category="rock">ROCK</div>
+            <div class="category" data-category="jazz">JAZZ</div>
+            <div class="category" data-category="hiphop">HIP-HOP</div>
+            <div class="category" data-category="blues">BLUES</div>
+            <div class="category" data-category="indie">INDIE</div>
+            <div class="category" data-category="lofi">LOFI</div>
+            <div class="category" data-category="techno">TECHNO</div>
+            <div class="category" data-category="world">WORLD</div>
+            <div class="category" data-category="game">GAME MUSIC</div>
+            
+            <!-- New Categories -->
+            <div class="category" data-category="punk">PUNK</div>
+            <div class="category" data-category="reggae">REGGAE</div>
+            <div class="category" data-category="soul">SOUL</div>
+            <div class="category" data-category="funk">FUNK</div>
+            <div class="category" data-category="country">COUNTRY</div>
+            <div class="category" data-category="disco">DISCO</div>
+            <div class="category" data-category="house">HOUSE</div>
+            <div class="category" data-category="trance">TRANCE</div>
+            <div class="category" data-category="synthwave">SYNTHWAVE</div>
+            <div class="category" data-category="latin">LATIN</div>
+            <div class="category" data-category="jazz-funk">JAZZ FUNK</div>
+            <div class="category" data-category="dnb">DRUM & BASS</div>
+            <div class="category" data-category="psytrance">PSY TRANCE</div>
+            <div class="category" data-category="darkwave">DARKWAVE</div>
+            <div class="category" data-category="industrial">INDUSTRIAL</div>
+            <div class="category" data-category="folk">FOLK</div>
+            <div class="category" data-category="gospel">GOSPEL</div>
+            <div class="category" data-category="meditation">MEDITATION</div>
+            <div class="category" data-category="christmas">CHRISTMAS</div>
+            <div class="category" data-category="oldies">OLDIES</div>
+        </div>
+
+        <div id="favorites" class="category-content">
+            <!-- Favorites will be loaded dynamically -->
+        </div>
+        <div id="metal" class="category-content"></div>
+        <div id="ambient" class="category-content"></div>
+        <div id="electronic" class="category-content"></div>
+        <div id="classical" class="category-content"></div>
+        <div id="rock" class="category-content"></div>
+        <div id="jazz" class="category-content"></div>
+        <div id="hiphop" class="category-content"></div>
+        <div id="blues" class="category-content"></div>
+        <div id="indie" class="category-content"></div>
+        <div id="lofi" class="category-content"></div>
+        <div id="techno" class="category-content"></div>
+        <div id="world" class="category-content"></div>
+        <div id="games" class="category-content"></div>
+        <div id="punk" class="category-content"></div>
+        <div id="reggae" class="category-content"></div>
+        <div id="soul" class="category-content"></div>
+        <div id="funk" class="category-content"></div>
+        <div id="country" class="category-content"></div>
+        <div id="disco" class="category-content"></div>
+        <div id="house" class="category-content"></div>
+        <div id="trance" class="category-content"></div>
+        <div id="synthwave" class="category-content"></div>
+        <div id="latin" class="category-content"></div>
+        <div id="jazz-funk" class="category-content"></div>
+        <div id="dnb" class="category-content"></div>
+        <div id="psytrance" class="category-content"></div>
+        <div id="darkwave" class="category-content"></div>
+        <div id="industrial" class="category-content"></div>
+        <div id="folk" class="category-content"></div>
+        <div id="gospel" class="category-content"></div>
+        <div id="meditation" class="category-content"></div>
+        <div id="christmas" class="category-content"></div>
+        <div id="oldies" class="category-content"></div>
+
+        <ul id="station-list" class="station-list"></ul>
+
+        <audio id="audio-player"></audio>
+
+        <script>
+            const audioPlayer = document.getElementById('audio-player');
+            const playBtn = document.getElementById('play');
+            const prevBtn = document.getElementById('prev');
+            const nextBtn = document.getElementById('next');
+            const currentTrackDiv = document.getElementById('current-track');
+            let currentlyPlaying = null;
+            let currentStations = [];
+            let currentIndex = -1;
+            let favorites = JSON.parse(localStorage.getItem('favorites')) || [];
+
+            // Fetch radio stations from Radio Browser API
+            async function fetchRadioBrowserStations(category) {
+                // Using the most reliable endpoint
+                const API_BASE = 'https://de1.api.radio-browser.info';
+                
+                try {
+                    const apiUrl = `${API_BASE}/json/stations/bytagexact/${encodeURIComponent(category.toLowerCase())}`;
+                    
+                    const params = new URLSearchParams({
+                        limit: '100',          // Increased from 15 to 100 stations
+                        order: 'votes',        // Sort by votes
+                        reverse: 'true',       // Highest votes first
+                        hidebroken: 'true',    // Hide broken stations
+                        offset: '0',           // Start from beginning
+                        codec: 'mp3,aac',      // Only get stations with common codecs
+                        has_extended_info: 'true' // Get stations with good metadata
+                    });
+
+                    console.log('Fetching from URL:', `${apiUrl}?${params}`);
+
+                    const response = await fetch(`${apiUrl}?${params}`, {
+                        method: 'GET',
+                        headers: {
+                            'User-Agent': 'RadioPlayerWebApp/1.0',
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const stations = await response.json();
+                    console.log(`Received ${stations.length} stations for ${category}`);
+
+                    // Filter and sort stations by multiple criteria
+                    return stations
+                        .filter(station => 
+                            station.url_resolved && 
+                            station.name && 
+                            !station.broken &&
+                            station.bitrate >= 64 && // Minimum quality requirement
+                            station.votes > 0        // Has at least some votes
+                        )
+                        .sort((a, b) => {
+                            // Primary sort by votes
+                            const votesDiff = b.votes - a.votes;
+                            if (votesDiff !== 0) return votesDiff;
+                            
+                            // Secondary sort by bitrate
+                            return b.bitrate - a.bitrate;
+                        })
+                        .map(station => ({
+                            name: station.name,
+                            url: station.url_resolved,
+                            bitrate: station.bitrate,
+                            codec: station.codec,
+                            votes: station.votes
+                        }));
+                } catch (error) {
+                    console.error('Error fetching stations:', error);
+                    return [];
+                }
+            }
+
+            // Load stations for a category
+            async function loadStations(categoryId) {
+                console.log('Loading stations for category:', categoryId);
+                const stationList = document.getElementById('station-list');
+                stationList.innerHTML = '<li class="station">Loading stations...</li>';
+
+                if (categoryId === 'favorites') {
+                    displayFavorites();
+                    return;
+                }
+
+                try {
+                    const stations = await fetchRadioBrowserStations(categoryId);
+                    currentStations = stations;
+                    
+                    if (stations.length === 0) {
+                        stationList.innerHTML = '<li class="station">No stations found</li>';
+                        return;
+                    }
+
+                    stationList.innerHTML = stations.map((station, index) => {
+                        const isPlaying = audioPlayer.src === station.url && !audioPlayer.paused;
+                        return `
+                            <li class="station ${isPlaying ? 'playing' : ''}" onclick="playStation(${index})">
+                                <span>${station.name}</span>
+                                <div class="station-controls">
+                                    <span class="heart ${isInFavorites(station.name, station.url) ? 'active' : ''}" 
+                                          onclick="event.stopPropagation(); toggleFavorite('${station.name}', '${station.url}')">♥</span>
+                                </div>
+                            </li>
+                        `;
+                    }).join('');
+
+                    // Show the station list and hide categories
+                    document.querySelector('.categories').style.display = 'none';
+                    document.querySelector('.back-btn').style.display = 'block';
+                    stationList.style.display = 'block';
+                } catch (error) {
+                    console.error('Error loading stations:', error);
+                    stationList.innerHTML = '<li class="station">Error loading stations. Please try again.</li>';
+                }
+            }
+
+            // Function to check if a station is in favorites
+            function isInFavorites(name, url) {
+                return favorites.some(fav => fav.name === name && fav.url === url);
+            }
+
+            // Function to display favorites
+            function displayFavorites() {
+                const stationList = document.getElementById('station-list');
+                const categories = document.querySelector('.categories');
+                
+                // Hide categories and show back button
+                categories.style.display = 'none';
+                document.querySelector('.back-btn').style.display = 'block';
+
+                if (favorites.length === 0) {
+                    stationList.innerHTML = '<li class="station">No favorites yet</li>';
+                    stationList.style.display = 'block';
+                    return;
+                }
+
+                // Display favorite stations
+                stationList.innerHTML = favorites.map((station, index) => {
+                    const isPlaying = audioPlayer.src === station.url && !audioPlayer.paused;
+                    return `
+                        <li class="station ${isPlaying ? 'playing' : ''}" onclick="playStation(${index}, true)">
+                            <span>${station.name}</span>
+                            <div class="station-controls">
+                                <span class="heart active" 
+                                      onclick="event.stopPropagation(); toggleFavorite('${station.name}', '${station.url}')">♥</span>
+                            </div>
+                        </li>
+                    `;
+                }).join('');
+                
+                stationList.style.display = 'block';
+                currentStations = favorites;
+            }
+
+            // Function to play a station
+            function playStation(index, isFavorite = false) {
+                const station = currentStations[index];
+                if (!station) return;
+
+                const stationElements = document.querySelectorAll('.station');
+                const stationElement = stationElements[index];
+
+                // Check if this station is already playing
+                const isCurrentlyPlaying = audioPlayer.src === station.url && !audioPlayer.paused;
+
+                if (isCurrentlyPlaying) {
+                    // If clicking the currently playing station, pause it
+                    audioPlayer.pause();
+                    playBtn.textContent = '⏵';
+                    stationElement?.classList.remove('playing');
+                    currentTrackDiv.textContent = 'Select a station';
+                } else {
+                    // Remove playing class from all stations
+                    stationElements.forEach(el => el.classList.remove('playing'));
+
+                    // Add playing class to new station
+                    stationElement?.classList.add('playing');
+                    
+                    // Set audio source and play
+                    audioPlayer.src = station.url;
+                    audioPlayer.play()
+                        .catch(error => {
+                            console.error('Error playing station:', error);
+                            alert('Error playing station. Please try another one.');
+                            stationElement?.classList.remove('playing');
+                            return;
+                        });
+                    
+                    playBtn.textContent = '⏸';
+                    currentTrackDiv.textContent = station.name;
+                }
+            }
+
+            // Function to toggle favorite
+            function toggleFavorite(name, url) {
+                const index = favorites.findIndex(fav => fav.name === name && fav.url === url);
+                if (index !== -1) {
+                    favorites.splice(index, 1);
+                } else {
+                    favorites.push({ name, url });
+                }
+                localStorage.setItem('favorites', JSON.stringify(favorites));
+
+                // Update heart icons
+                const hearts = document.querySelectorAll('.heart');
+                hearts.forEach(heart => {
+                    const stationName = heart.closest('.station').querySelector('span').textContent;
+                    const stationUrl = currentStations.find(s => s.name === stationName)?.url;
+                    if (stationName === name && stationUrl === url) {
+                        heart.classList.toggle('active');
+                    }
+                });
+
+                // If we're in favorites view, refresh the list
+                if (document.querySelector('.categories').style.display === 'none' && 
+                    document.getElementById('station-list').style.display === 'block') {
+                    displayFavorites();
+                }
+            }
+
+            // Function to get random station
+            async function getRandomStation() {
+                // First try to get from favorites
+                if (favorites.length > 0 && Math.random() < 0.3) { // 30% chance to play from favorites
+                    const randomIndex = Math.floor(Math.random() * favorites.length);
+                    return { station: favorites[randomIndex], index: randomIndex, fromFavorites: true };
+                }
+
+                // If no favorites or didn't select from favorites, get random category and station
+                const categories = Array.from(document.querySelectorAll('.category'))
+                    .map(cat => cat.getAttribute('data-category'))
+                    .filter(cat => cat && cat !== 'favorites');
+                
+                const randomCategory = categories[Math.floor(Math.random() * categories.length)];
+                
+                try {
+                    const stations = await fetchRadioBrowserStations(randomCategory);
+                    if (stations.length > 0) {
+                        const randomIndex = Math.floor(Math.random() * stations.length);
+                        return { station: stations[randomIndex], index: randomIndex, fromFavorites: false, category: randomCategory };
+                    }
+                } catch (error) {
+                    console.error('Error fetching random station:', error);
+                }
+                return null;
+            }
+
+            // Function to play random station
+            async function playRandomStation() {
+                const randomStationData = await getRandomStation();
+                if (!randomStationData) return;
+
+                const { station, fromFavorites, category } = randomStationData;
+                
+                if (!fromFavorites) {
+                    // Load the category first
+                    await loadStations(category);
+                } else {
+                    displayFavorites();
+                }
+
+                // Find the station in the current list and play it
+                const stationIndex = currentStations.findIndex(s => 
+                    s.name === station.name && s.url === station.url
+                );
+                
+                if (stationIndex !== -1) {
+                    playStation(stationIndex);
+                }
+            }
+
+            // Function to play previous station
+            async function playPreviousStation() {
+                if (!audioPlayer.src) return;
+                await playRandomStation();
+            }
+
+            // Function to play next station
+            async function playNextStation() {
+                if (!audioPlayer.src) return;
+                await playRandomStation();
+            }
+
+            // Update play button event listener
+            playBtn.addEventListener('click', async () => {
+                if (!audioPlayer.src) {
+                    // If no station is selected, play a random one
+                    await playRandomStation();
+                } else {
+                    // Toggle play/pause for current station
+                    if (audioPlayer.paused) {
+                        audioPlayer.play();
+                        playBtn.textContent = '⏸';
+                    } else {
+                        audioPlayer.pause();
+                        playBtn.textContent = '⏵';
+                    }
+                }
+            });
+
+            // Add keyboard shortcuts for controls
+            document.addEventListener('keydown', async (e) => {
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    if (!audioPlayer.src) {
+                        await playRandomStation();
+                    } else {
+                        if (audioPlayer.paused) {
+                            audioPlayer.play();
+                            playBtn.textContent = '⏸';
+                        } else {
+                            audioPlayer.pause();
+                            playBtn.textContent = '⏵';
+                        }
+                    }
+                } else if (e.code === 'ArrowLeft') {
+                    await playPreviousStation();
+                } else if (e.code === 'ArrowRight') {
+                    await playNextStation();
+                }
+            });
+
+            // Add event listener for back button
+            document.querySelector('.back-btn').addEventListener('click', () => {
+                document.querySelector('.categories').style.display = 'block';
+                document.querySelector('.back-btn').style.display = 'none';
+                const stationList = document.getElementById('station-list');
+                stationList.style.display = 'none';
+                stationList.innerHTML = '';
+            });
+
+            // Add event listener for audio player error
+            audioPlayer.addEventListener('error', () => {
+                alert('ERROR: STREAM UNAVAILABLE');
+                if (currentlyPlaying) {
+                    currentlyPlaying = null;
+                    currentTrackDiv.textContent = 'Select a station';
+                    playBtn.textContent = '⏵';
+                }
+            });
+
+            // Initialize the app
+            document.addEventListener('DOMContentLoaded', () => {
+                // Add click handler for categories
+                document.querySelectorAll('.category').forEach(category => {
+                    category.addEventListener('click', () => {
+                        const categoryId = category.getAttribute('data-category');
+                        if (categoryId) {
+                            console.log('Loading category:', categoryId);
+                            loadStations(categoryId);
+                        }
+                    });
+                });
+
+                // Initially hide the back button
+                document.querySelector('.back-btn').style.display = 'none';
+            });
+        </script>
+    </div>
+</body>
+</html>
