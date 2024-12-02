@@ -333,6 +333,35 @@
                 padding: 0;
             }
         }
+
+        .credit {
+            position: fixed;
+            left: 50%;
+            bottom: 10px;
+            transform: translateX(-50%);
+            text-align: center;
+            font-size: 14px;
+            color: #fff;
+            z-index: 999;
+            white-space: nowrap;
+        }
+
+        .credit a {
+            color: #ff6b00;
+            text-decoration: none;
+            border-bottom: 1px solid #ff6b00;
+        }
+
+        .credit a:hover {
+            opacity: 0.7;
+        }
+
+        @media (max-width: 480px) {
+            .credit {
+                background: none;
+                padding: 5px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -441,6 +470,8 @@
         <audio id="audio-player"></audio>
 
         <div id="notification" class="notification"></div>
+
+        <div class="credit">made by <a href="https://www.lomz.net/" target="_blank">lomz.net</a></div>
 
         <script>
             const audioPlayer = document.getElementById('audio-player');
