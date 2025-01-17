@@ -705,7 +705,7 @@
                     }
                 } catch (error) {
                     console.error('Error in playStation:', error);
-                    showNotification('Error playing station');
+                    showNotification('Error playing station. Please try another one.');
                     const currentTrackDiv = document.getElementById('current-track');
                     currentTrackDiv.classList.remove('connecting');
                     currentTrackDiv.textContent = 'Select a station';
@@ -961,7 +961,7 @@
 
             // Add event listener for audio player error
             audioPlayer.addEventListener('error', () => {
-                alert('ERROR: STREAM UNAVAILABLE');
+                showNotification('Stream unavailable. Please try another station.');
                 if (currentlyPlaying) {
                     currentlyPlaying = null;
                     currentTrackDiv.textContent = 'Select a station';
