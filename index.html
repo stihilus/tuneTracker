@@ -1023,8 +1023,38 @@
                 searchInput.value = '';
             });
 
+            // Function to load random background
+            function loadRandomBackground() {
+                // List of all background images in the backgrounds folder
+                const backgroundImages = [
+                    'backgrounds/aj-rivera-iZtcyFF1sDM-unsplash.jpg',
+                    'backgrounds/amritansh-dubey-1eWgAktO2_Y-unsplash.jpg',
+                    'backgrounds/amritansh-dubey-Vq7pqdCN0Bo-unsplash.jpg',
+                    'backgrounds/background1.png',
+                    'backgrounds/danny-taing-oWMMRXJS4Ak-unsplash.jpg',
+                    'backgrounds/flavio-mori-vdkDCxSRQSY-unsplash.jpg',
+                    'backgrounds/haley-truong-KB6liFYE3ao-unsplash.jpg',
+                    'backgrounds/joel-de-vriend-qZ6if8WXl7E-unsplash.jpg',
+                    'backgrounds/julian-lozano-7KsEAafSnWk-unsplash.jpg',
+                    'backgrounds/luca-ferrario-btwfiqepL_A-unsplash.jpg',
+                    'backgrounds/nico-herrndobler-WtUxXuDlNi4-unsplash.jpg'
+                ];
+
+                // Select a random background image
+                const randomIndex = Math.floor(Math.random() * backgroundImages.length);
+                const selectedBackground = backgroundImages[randomIndex];
+
+                // Apply the background to the body element
+                document.body.style.backgroundImage = `url('${selectedBackground}')`;
+                
+                console.log('Loaded random background:', selectedBackground);
+            }
+
             // Initialize the app
             document.addEventListener('DOMContentLoaded', () => {
+                // Load random background on page load
+                loadRandomBackground();
+
                 // Add click handler for categories
                 document.querySelectorAll('.category').forEach(category => {
                     category.addEventListener('click', () => {
