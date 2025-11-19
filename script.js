@@ -10,6 +10,19 @@ let favorites = JSON.parse(localStorage.getItem('favorites')) || [];
 const searchInput = document.getElementById('searchInput');
 const volumeSlider = document.getElementById('volume');
 const notification = document.getElementById('notification');
+const backgroundImages = [
+    'backgrounds/aj-rivera-iZtcyFF1sDM-unsplash.jpg',
+    'backgrounds/amritansh-dubey-1eWgAktO2_Y-unsplash.jpg',
+    'backgrounds/amritansh-dubey-Vq7pqdCN0Bo-unsplash.jpg',
+    'backgrounds/background1.png',
+    'backgrounds/danny-taing-oWMMRXJS4Ak-unsplash.jpg',
+    'backgrounds/flavio-mori-vdkDCxSRQSY-unsplash.jpg',
+    'backgrounds/haley-truong-KB6liFYE3ao-unsplash.jpg',
+    'backgrounds/joel-de-vriend-qZ6if8WXl7E-unsplash.jpg',
+    'backgrounds/julian-lozano-7KsEAafSnWk-unsplash.jpg',
+    'backgrounds/luca-ferrario-btwfiqepL_A-unsplash.jpg',
+    'backgrounds/nico-herrndobler-WtUxXuDlNi4-unsplash.jpg'
+];
 
 // Volume control
 volumeSlider.addEventListener('input', (e) => {
@@ -533,37 +546,45 @@ document.querySelector('.back-btn').addEventListener('click', () => {
     searchInput.value = '';
 });
 
-// Function to load random background
-function loadRandomBackground() {
-    // List of all background images in the backgrounds folder
-    const backgroundImages = [
-        'backgrounds/aj-rivera-iZtcyFF1sDM-unsplash.jpg',
-        'backgrounds/amritansh-dubey-1eWgAktO2_Y-unsplash.jpg',
-        'backgrounds/amritansh-dubey-Vq7pqdCN0Bo-unsplash.jpg',
-        'backgrounds/background1.png',
-        'backgrounds/danny-taing-oWMMRXJS4Ak-unsplash.jpg',
-        'backgrounds/flavio-mori-vdkDCxSRQSY-unsplash.jpg',
-        'backgrounds/haley-truong-KB6liFYE3ao-unsplash.jpg',
-        'backgrounds/joel-de-vriend-qZ6if8WXl7E-unsplash.jpg',
-        'backgrounds/julian-lozano-7KsEAafSnWk-unsplash.jpg',
-        'backgrounds/luca-ferrario-btwfiqepL_A-unsplash.jpg',
-        'backgrounds/nico-herrndobler-WtUxXuDlNi4-unsplash.jpg'
-    ];
+// Background slideshow helpers
+function getRandomBackground(exclude) {
+    const pool = backgroundImages.filter(image => image !== exclude);
+    const source = pool.length ? pool : backgroundImages;
+    const randomIndex = Math.floor(Math.random() * source.length);
+    return source[randomIndex];
+}
 
-    // Select a random background image
-    const randomIndex = Math.floor(Math.random() * backgroundImages.length);
-    const selectedBackground = backgroundImages[randomIndex];
+function initBackgroundSlideshow() {
+    const layers = document.querySelectorAll('.background-layer');
+    if (layers.length < 2 || backgroundImages.length === 0) {
+        return;
+    }
 
-    // Apply the background to the body element
-    document.body.style.backgroundImage = `url('${selectedBackground}')`;
-    
-    console.log('Loaded random background:', selectedBackground);
+    let activeLayerIndex = 0;
+    let currentBackground = getRandomBackground();
+
+    layers.forEach(layer => {
+        layer.style.backgroundImage = `url('${currentBackground}')`;
+    });
+    layers[activeLayerIndex].classList.add('active');
+
+    setInterval(() => {
+        const nextLayerIndex = (activeLayerIndex + 1) % layers.length;
+        const nextBackground = getRandomBackground(currentBackground);
+
+        layers[nextLayerIndex].style.backgroundImage = `url('${nextBackground}')`;
+        layers[nextLayerIndex].classList.add('active');
+        layers[activeLayerIndex].classList.remove('active');
+
+        activeLayerIndex = nextLayerIndex;
+        currentBackground = nextBackground;
+    }, 10000);
 }
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', () => {
-    // Load random background on page load
-    loadRandomBackground();
+    // Start rotating backgrounds
+    initBackgroundSlideshow();
 
     // Add click handler for categories
     document.querySelectorAll('.category').forEach(category => {

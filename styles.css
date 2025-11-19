@@ -17,6 +17,7 @@ html, body {
 body {
     font-family: 'DepartureMono', monospace;
     background-image: url('background.png');
+    background-color: #000;
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
@@ -38,6 +39,29 @@ body {
     display: flex;
     flex-direction: column;
     position: relative;
+}
+
+.background-slideshow {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    z-index: -1;
+    pointer-events: none;
+}
+
+.background-layer {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0;
+    transition: opacity 1.2s ease-in-out;
+    will-change: opacity;
+}
+
+.background-layer.active {
+    opacity: 1;
 }
 
 .player-header {
