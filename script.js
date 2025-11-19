@@ -1,15 +1,30 @@
 const audioPlayer = document.getElementById('audio-player');
 const playBtn = document.getElementById('play');
-const prevBtn = document.getElementById('prev');
-const nextBtn = document.getElementById('next');
 const currentTrackDiv = document.getElementById('current-track');
-let currentlyPlaying = null;
 let currentStations = [];
-let currentIndex = -1;
-let favorites = JSON.parse(localStorage.getItem('favorites')) || [];
+let currentStationIndex = -1;
+let searchTimeout = null;
+let isSearchResults = false;
+let favorites = (JSON.parse(localStorage.getItem('favorites')) || []).map(fav => ({
+    name: fav.name,
+    url: fav.url,
+    bitrate: fav.bitrate || fav.bit_rate || null,
+    codec: fav.codec || '',
+    votes: fav.votes || 0,
+    favicon: fav.favicon || '',
+    tags: fav.tags || ''
+}));
 const searchInput = document.getElementById('searchInput');
 const volumeSlider = document.getElementById('volume');
 const notification = document.getElementById('notification');
+const stationListElement = document.getElementById('station-list');
+const categoriesGrid = document.querySelector('.categories');
+const backButton = document.querySelector('.back-btn');
+const playbackStatusEl = document.getElementById('playback-status');
+const currentMetaEl = document.getElementById('current-meta');
+const stationArtEl = document.getElementById('station-art');
+const DEFAULT_ART = 'TuneTracker.svg';
+const VOLUME_STORAGE_KEY = 'tunetracker-volume';
 const backgroundImages = [
     'backgrounds/aj-rivera-iZtcyFF1sDM-unsplash.jpg',
     'backgrounds/amritansh-dubey-1eWgAktO2_Y-unsplash.jpg',
@@ -24,9 +39,230 @@ const backgroundImages = [
     'backgrounds/nico-herrndobler-WtUxXuDlNi4-unsplash.jpg'
 ];
 
+function escapeHtml(text = '') {
+    const safeText = String(text);
+    return safeText.replace(/[&<>"']/g, (char) => {
+        switch (char) {
+            case '&':
+                return '&amp;';
+            case '<':
+                return '&lt;';
+            case '>':
+                return '&gt;';
+            case '"':
+                return '&quot;';
+            case "'":
+                return '&#39;';
+            default:
+                return char;
+        }
+    });
+}
+
+function setPlaybackStatus(message) {
+    if (playbackStatusEl) {
+        playbackStatusEl.textContent = message;
+    }
+}
+
+function setStationArt(source) {
+    if (!stationArtEl) return;
+    if (source) {
+        let resolvedSource = source.trim();
+        if (resolvedSource.startsWith('//')) {
+            resolvedSource = `https:${resolvedSource}`;
+        }
+        if (resolvedSource.startsWith('http') || resolvedSource.startsWith('data:')) {
+            stationArtEl.src = resolvedSource;
+            stationArtEl.alt = 'Current station artwork';
+            return;
+        }
+    }
+
+    stationArtEl.src = DEFAULT_ART;
+    stationArtEl.alt = 'TuneTracker Logo';
+}
+
+function updateNowPlayingInfo(station) {
+    if (!station) {
+        currentTrackDiv.textContent = 'Select a station';
+        if (currentMetaEl) {
+            currentMetaEl.textContent = '';
+        }
+        setStationArt(null);
+        setPlaybackStatus('Idle');
+        return;
+    }
+
+    currentTrackDiv.textContent = station.name;
+    const metaParts = [];
+    if (station.codec) {
+        metaParts.push(station.codec.toUpperCase());
+    }
+    if (station.bitrate) {
+        metaParts.push(`${station.bitrate} kbps`);
+    }
+    if (station.tags) {
+        const trimmedTags = station.tags.split(',').map(tag => tag.trim()).filter(Boolean).slice(0, 2);
+        if (trimmedTags.length) {
+            metaParts.push(trimmedTags.join(', '));
+        }
+    }
+    if (currentMetaEl) {
+        currentMetaEl.textContent = metaParts.join(' • ');
+    }
+    setStationArt(station.favicon);
+}
+function highlightPlayingStation(index) {
+    if (!stationListElement) return;
+    stationListElement.querySelectorAll('.station').forEach((stationEl, stationIndex) => {
+        stationEl.classList.toggle('playing', stationIndex === index);
+    });
+}
+
+function showStationView() {
+    if (!categoriesGrid || !backButton || !stationListElement) return;
+    categoriesGrid.style.display = 'none';
+    backButton.style.display = 'block';
+    stationListElement.style.display = 'block';
+}
+
+function showCategoriesView() {
+    if (!categoriesGrid || !backButton || !stationListElement) return;
+    categoriesGrid.style.display = 'grid';
+    backButton.style.display = 'none';
+    stationListElement.style.display = 'none';
+    stationListElement.innerHTML = '';
+}
+
+function filterVisibleStations(searchTerm) {
+    if (!stationListElement) return;
+    const normalizedTerm = searchTerm.trim().toLowerCase();
+    stationListElement.querySelectorAll('.station').forEach((stationEl) => {
+        const encodedName = stationEl.getAttribute('data-name') || '';
+        let decodedName = '';
+        try {
+            decodedName = decodeURIComponent(encodedName);
+        } catch (error) {
+            decodedName = encodedName;
+        }
+        stationEl.style.display = decodedName.includes(normalizedTerm) ? 'flex' : 'none';
+    });
+}
+
+function renderStationList(stations = []) {
+    if (!stationListElement) return;
+
+    if (!stations.length) {
+        stationListElement.innerHTML = '<li class="station">No stations found</li>';
+        return;
+    }
+
+    stationListElement.innerHTML = stations.map((station, index) => {
+        const isPlaying = audioPlayer.src === station.url && !audioPlayer.paused;
+        const isFavorite = isInFavorites(station.name, station.url);
+        const metaParts = [];
+        if (station.codec) metaParts.push(station.codec.toUpperCase());
+        if (station.bitrate) metaParts.push(`${station.bitrate} kbps`);
+        if (station.tags) {
+            const tags = station.tags.split(',').map(tag => tag.trim()).filter(Boolean).slice(0, 2);
+            if (tags.length) {
+                metaParts.push(tags.join(', '));
+            }
+        }
+        const meta = metaParts.join(' • ');
+
+        return `
+            <li class="station ${isPlaying ? 'playing' : ''}" role="button" tabindex="0"
+                data-index="${index}" data-name="${encodeURIComponent(station.name.toLowerCase())}">
+                <div class="station-details">
+                    <span class="station-name">${escapeHtml(station.name)}</span>
+                    ${meta ? `<span class="station-info">${escapeHtml(meta)}</span>` : ''}
+                </div>
+                <div class="station-controls">
+                    <button type="button" class="heart ${isFavorite ? 'active' : ''}" 
+                        aria-label="${isFavorite ? 'Remove from favorites' : 'Add to favorites'}"
+                        aria-pressed="${isFavorite}"
+                        data-index="${index}">
+                        ♥
+                    </button>
+                </div>
+            </li>
+        `;
+    }).join('');
+
+    highlightPlayingStation(currentStationIndex);
+}
+
+function handleStationSelection(index) {
+    if (Number.isNaN(index)) return;
+    playStation(index);
+}
+
+if (stationListElement) {
+    stationListElement.addEventListener('click', (event) => {
+        const heartBtn = event.target.closest('.heart');
+        if (heartBtn) {
+            event.stopPropagation();
+            const index = Number(heartBtn.dataset.index);
+            const station = currentStations[index];
+            if (station) {
+                toggleFavorite(station.name, station.url);
+            }
+            return;
+        }
+
+        const stationItem = event.target.closest('.station');
+        if (!stationItem) return;
+        const index = Number(stationItem.dataset.index);
+        handleStationSelection(index);
+    });
+
+    stationListElement.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const stationItem = event.target.closest('.station');
+        if (!stationItem) return;
+        event.preventDefault();
+        const index = Number(stationItem.dataset.index);
+        handleStationSelection(index);
+    });
+}
+
+function handleBackNavigation() {
+    searchInput.value = '';
+    isSearchResults = false;
+    if (searchTimeout) {
+        clearTimeout(searchTimeout);
+        searchTimeout = null;
+    }
+    showCategoriesView();
+}
+
+if (backButton) {
+    backButton.setAttribute('role', 'button');
+    backButton.setAttribute('tabindex', '0');
+    backButton.addEventListener('click', handleBackNavigation);
+    backButton.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            handleBackNavigation();
+        }
+    });
+}
+
 // Volume control
+const storedVolume = localStorage.getItem(VOLUME_STORAGE_KEY);
+if (storedVolume !== null) {
+    volumeSlider.value = storedVolume;
+    audioPlayer.volume = storedVolume / 100;
+} else {
+    audioPlayer.volume = volumeSlider.value / 100;
+}
+
 volumeSlider.addEventListener('input', (e) => {
-    audioPlayer.volume = e.target.value / 100;
+    const volumeValue = e.target.value;
+    audioPlayer.volume = volumeValue / 100;
+    localStorage.setItem(VOLUME_STORAGE_KEY, volumeValue);
 });
 
 // Show notification function
@@ -113,7 +349,9 @@ async function fetchRadioBrowserStations(category) {
                     url: station.url_resolved,
                     bitrate: station.bitrate,
                     codec: station.codec,
-                    votes: station.votes
+                    votes: station.votes,
+                    favicon: station.favicon,
+                    tags: station.tags
                 }));
         } catch (error) {
             console.error(`Error with server ${server}:`, error);
@@ -130,8 +368,8 @@ async function fetchRadioBrowserStations(category) {
 // Load stations for a category
 async function loadStations(categoryId) {
     console.log('Loading stations for category:', categoryId);
-    const stationList = document.getElementById('station-list');
-    stationList.innerHTML = '<li class="station">Loading stations...</li>';
+    if (!stationListElement) return;
+    stationListElement.innerHTML = '<li class="station">Loading stations...</li>';
 
     if (categoryId === 'favorites') {
         displayFavorites();
@@ -141,32 +379,20 @@ async function loadStations(categoryId) {
     try {
         const stations = await fetchRadioBrowserStations(categoryId);
         currentStations = stations;
+        isSearchResults = false;
         
         if (stations.length === 0) {
-            stationList.innerHTML = '<li class="station">No stations found</li>';
+            stationListElement.innerHTML = '<li class="station">No stations found</li>';
+            showStationView();
             return;
         }
 
-        stationList.innerHTML = stations.map((station, index) => {
-            const isPlaying = audioPlayer.src === station.url && !audioPlayer.paused;
-            return `
-                <li class="station ${isPlaying ? 'playing' : ''}" onclick="playStation(${index})">
-                    <span>${station.name}</span>
-                    <div class="station-controls">
-                        <span class="heart ${isInFavorites(station.name, station.url) ? 'active' : ''}" 
-                              onclick="event.stopPropagation(); toggleFavorite('${station.name}', '${station.url}')">♥</span>
-                    </div>
-                </li>
-            `;
-        }).join('');
-
-        // Show the station list and hide categories
-        document.querySelector('.categories').style.display = 'none';
-        document.querySelector('.back-btn').style.display = 'block';
-        stationList.style.display = 'block';
+        renderStationList(stations);
+        showStationView();
     } catch (error) {
         console.error('Error loading stations:', error);
-        stationList.innerHTML = '<li class="station">Error loading stations. Please try again.</li>';
+        stationListElement.innerHTML = '<li class="station">Error loading stations. Please try again.</li>';
+        showStationView();
     }
 }
 
@@ -177,84 +403,55 @@ function isInFavorites(name, url) {
 
 // Function to display favorites
 function displayFavorites() {
-    const stationList = document.getElementById('station-list');
-    const categories = document.querySelector('.categories');
+    if (!stationListElement) return;
     
     // Hide categories and show back button
-    categories.style.display = 'none';
-    document.querySelector('.back-btn').style.display = 'block';
+    showStationView();
 
     if (favorites.length === 0) {
-        stationList.innerHTML = '<li class="station">No favorites yet</li>';
-        stationList.style.display = 'block';
+        stationListElement.innerHTML = '<li class="station">No favorites yet</li>';
         return;
     }
 
-    // Display favorite stations
-    stationList.innerHTML = favorites.map((station, index) => {
-        const isPlaying = audioPlayer.src === station.url && !audioPlayer.paused;
-        return `
-            <li class="station ${isPlaying ? 'playing' : ''}" onclick="playStation(${index}, true)">
-                <span>${station.name}</span>
-                <div class="station-controls">
-                    <span class="heart active" 
-                          onclick="event.stopPropagation(); toggleFavorite('${station.name}', '${station.url}')">♥</span>
-                </div>
-            </li>
-        `;
-    }).join('');
-    
-    stationList.style.display = 'block';
     currentStations = favorites;
+    isSearchResults = false;
+    renderStationList(favorites);
 }
 
 // Function to play a station
-async function playStation(index, isFavorite = false) {
+async function playStation(index) {
     try {
-        currentStationIndex = index;
-        const stations = isFavorite ? favorites : currentStations;
-        const station = stations[index];
-        
+        const station = currentStations[index];
         if (!station) {
             showNotification('Station not found');
             return;
         }
 
-        // Start with "Select a station"
-        const currentTrackDiv = document.getElementById('current-track');
-        currentTrackDiv.textContent = 'Select a station';
-
-        // Show connecting state
-        currentTrackDiv.textContent = '';
+        currentStationIndex = index;
         currentTrackDiv.classList.add('connecting');
+        currentTrackDiv.textContent = '';
+        setPlaybackStatus('Connecting…');
 
-        // Update audio source and play
         audioPlayer.src = station.url;
-        
+
         try {
             await audioPlayer.play();
-            // Remove connecting animation and show station name
             currentTrackDiv.classList.remove('connecting');
-            currentTrackDiv.textContent = station.name;
+            updateNowPlayingInfo(station);
             playBtn.textContent = '⏸';
-            
-            // Update station list to show playing status
-            document.querySelectorAll('.station').forEach((el, i) => {
-                el.classList.toggle('playing', i === index);
-            });
+            highlightPlayingStation(index);
         } catch (error) {
             console.error('Error playing station:', error);
             showNotification('Unable to connect to this station. Please try another one.');
             currentTrackDiv.classList.remove('connecting');
-            currentTrackDiv.textContent = 'Select a station';
+            updateNowPlayingInfo(null);
             playBtn.textContent = '⏵';
         }
     } catch (error) {
         console.error('Error in playStation:', error);
         showNotification('Error playing station. Please try another one.');
-        const currentTrackDiv = document.getElementById('current-track');
         currentTrackDiv.classList.remove('connecting');
-        currentTrackDiv.textContent = 'Select a station';
+        updateNowPlayingInfo(null);
     }
 }
 
@@ -264,24 +461,14 @@ function toggleFavorite(name, url) {
     if (index !== -1) {
         favorites.splice(index, 1);
     } else {
-        favorites.push({ name, url });
+        const sourceStation = currentStations.find(station => station.name === name && station.url === url);
+        favorites.push(sourceStation ? { ...sourceStation } : { name, url });
     }
     localStorage.setItem('favorites', JSON.stringify(favorites));
 
-    // Update heart icons
-    const hearts = document.querySelectorAll('.heart');
-    hearts.forEach(heart => {
-        const stationName = heart.closest('.station').querySelector('span').textContent;
-        const stationUrl = currentStations.find(s => s.name === stationName)?.url;
-        if (stationName === name && stationUrl === url) {
-            heart.classList.toggle('active');
-        }
-    });
-
-    // If we're in favorites view, refresh the list
-    if (document.querySelector('.categories').style.display === 'none' && 
-        document.getElementById('station-list').style.display === 'block') {
-        displayFavorites();
+    if (stationListElement && stationListElement.style.display === 'block') {
+        renderStationList(currentStations);
+        highlightPlayingStation(currentStationIndex);
     }
 }
 
@@ -382,7 +569,9 @@ async function searchStationsAPI(searchTerm) {
                 url: station.url_resolved,
                 bitrate: station.bitrate,
                 codec: station.codec,
-                votes: station.votes
+                votes: station.votes,
+                favicon: station.favicon,
+                tags: station.tags
             }));
     } catch (error) {
         console.error('Error searching stations:', error);
@@ -390,72 +579,46 @@ async function searchStationsAPI(searchTerm) {
     }
 }
 
-let searchTimeout = null;
+function handleSearchInput(event) {
+    if (!stationListElement) return;
+    const searchTerm = event.target.value.trim().toLowerCase();
+    const isListFromCategory = categoriesGrid && categoriesGrid.style.display === 'none' && !isSearchResults;
 
-// Update search functionality
-searchInput.addEventListener('input', async function(e) {
-    const searchTerm = e.target.value.toLowerCase();
-    const stationList = document.getElementById('station-list');
-    
-    if (stationList) {
-        // If we're in a category view, filter the existing stations
-        if (document.querySelector('.categories').style.display === 'none') {
-            const stationElements = stationList.getElementsByClassName('station');
-            Array.from(stationElements).forEach(station => {
-                const stationName = station.querySelector('span').textContent.toLowerCase();
-                if (stationName.includes(searchTerm)) {
-                    station.style.display = 'flex';
-                } else {
-                    station.style.display = 'none';
-                }
-            });
-        } 
-        // If we're in the main view and search term is not empty, perform API search
-        else if (searchTerm.length >= 2) {
-            // Clear any existing timeout
-            if (searchTimeout) {
-                clearTimeout(searchTimeout);
-            }
-
-            // Set new timeout to prevent too many API calls
-            searchTimeout = setTimeout(async () => {
-                document.querySelector('.categories').style.display = 'none';
-                document.querySelector('.back-btn').style.display = 'block';
-                stationList.style.display = 'block';
-                stationList.innerHTML = '<li class="station">Searching...</li>';
-
-                const stations = await searchStationsAPI(searchTerm);
-                currentStations = stations;
-
-                if (stations.length === 0) {
-                    stationList.innerHTML = '<li class="station">No stations found</li>';
-                    return;
-                }
-
-                stationList.innerHTML = stations.map((station, index) => {
-                    const isPlaying = audioPlayer.src === station.url && !audioPlayer.paused;
-                    return `
-                        <li class="station ${isPlaying ? 'playing' : ''}" onclick="playStation(${index})">
-                            <span>${station.name}</span>
-                            <div class="station-controls">
-                                <span class="heart ${isInFavorites(station.name, station.url) ? 'active' : ''}" 
-                                      onclick="event.stopPropagation(); toggleFavorite('${station.name}', '${station.url}')">♥</span>
-                            </div>
-                        </li>
-                    `;
-                }).join('');
-            }, 500); // Wait 500ms after last keystroke before searching
-        }
+    if (isListFromCategory) {
+        filterVisibleStations(searchTerm);
+        return;
     }
-});
 
-// Update back button to handle search results
-document.querySelector('.back-btn').addEventListener('click', () => {
-    searchInput.value = '';
-    document.querySelector('.categories').style.display = 'grid';
-    document.querySelector('.back-btn').style.display = 'none';
-    document.getElementById('station-list').style.display = 'none';
-});
+    if (searchTerm.length < 2) {
+        if (isSearchResults) {
+            isSearchResults = false;
+            showCategoriesView();
+        }
+        return;
+    }
+
+    if (searchTimeout) {
+        clearTimeout(searchTimeout);
+    }
+
+    const latestTerm = searchTerm;
+    searchTimeout = setTimeout(async () => {
+        if (searchInput.value.trim().toLowerCase() !== latestTerm) {
+            return;
+        }
+
+        showStationView();
+        stationListElement.innerHTML = '<li class="station">Searching...</li>';
+
+        const stations = await searchStationsAPI(latestTerm);
+        currentStations = stations;
+        isSearchResults = true;
+        renderStationList(stations);
+        searchTimeout = null;
+    }, 400);
+}
+
+searchInput.addEventListener('input', handleSearchInput);
 
 // Update play button event listener
 playBtn.addEventListener('click', async () => {
@@ -496,55 +659,26 @@ document.addEventListener('keydown', async (e) => {
     }
 });
 
-// Add event listener for back button
-document.querySelector('.back-btn').addEventListener('click', () => {
-    document.querySelector('.categories').style.display = 'block';
-    document.querySelector('.back-btn').style.display = 'none';
-    const stationList = document.getElementById('station-list');
-    stationList.style.display = 'none';
-    stationList.innerHTML = '';
-});
-
 // Add event listener for audio player error
 audioPlayer.addEventListener('error', () => {
     showNotification('Stream unavailable. Please try another station.');
-    if (currentlyPlaying) {
-        currentlyPlaying = null;
-        currentTrackDiv.textContent = 'Select a station';
-        playBtn.textContent = '⏵';
-    }
+    updateNowPlayingInfo(null);
+    playBtn.textContent = '⏵';
+    highlightPlayingStation(-1);
+    currentStationIndex = -1;
+    setPlaybackStatus('Error');
 });
 
-// Search functionality
-searchInput.addEventListener('input', function(e) {
-    const searchTerm = e.target.value.toLowerCase();
-    const stationList = document.getElementById('station-list');
-    
-    if (stationList) {
-        const stationElements = stationList.getElementsByClassName('station');
-        
-        Array.from(stationElements).forEach(station => {
-            const stationName = station.querySelector('span').textContent.toLowerCase();
-            if (stationName.includes(searchTerm)) {
-                station.style.display = 'flex';
-            } else {
-                station.style.display = 'none';
-            }
-        });
-    }
+audioPlayer.addEventListener('loadstart', () => setPlaybackStatus('Connecting…'));
+audioPlayer.addEventListener('waiting', () => setPlaybackStatus('Buffering…'));
+audioPlayer.addEventListener('stalled', () => setPlaybackStatus('Reconnecting…'));
+audioPlayer.addEventListener('playing', () => setPlaybackStatus('Live'));
+audioPlayer.addEventListener('pause', () => {
+    setPlaybackStatus(audioPlayer.currentTime > 0 ? 'Paused' : 'Idle');
 });
+audioPlayer.addEventListener('ended', () => setPlaybackStatus('Ended'));
 
-// Clear search when changing categories
-document.querySelectorAll('.category').forEach(category => {
-    category.addEventListener('click', () => {
-        searchInput.value = '';
-    });
-});
-
-// Clear search when clicking back
-document.querySelector('.back-btn').addEventListener('click', () => {
-    searchInput.value = '';
-});
+// Search functionality handled via handleSearchInput
 
 // Background slideshow helpers
 function getRandomBackground(exclude) {
@@ -583,21 +717,39 @@ function initBackgroundSlideshow() {
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', () => {
+    updateNowPlayingInfo(null);
+
     // Start rotating backgrounds
     initBackgroundSlideshow();
 
     // Add click handler for categories
     document.querySelectorAll('.category').forEach(category => {
+        category.setAttribute('role', 'button');
+        category.setAttribute('tabindex', '0');
         category.addEventListener('click', () => {
             const categoryId = category.getAttribute('data-category');
             if (categoryId) {
                 console.log('Loading category:', categoryId);
+                searchInput.value = '';
+                isSearchResults = false;
+                if (searchTimeout) {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = null;
+                }
                 loadStations(categoryId);
+            }
+        });
+        category.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                category.click();
             }
         });
     });
 
     // Initially hide the back button
-    document.querySelector('.back-btn').style.display = 'none';
+    if (backButton) {
+        backButton.style.display = 'none';
+    }
 });
 

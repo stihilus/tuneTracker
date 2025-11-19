@@ -47,25 +47,27 @@
     <div class="player-container">
         <div class="player-header">
             <div class="now-playing">
-                <img src="TuneTracker.svg" alt="TuneTracker Logo" class="logo">
-                <div id="current-track">Select a station</div>
+                <img src="TuneTracker.svg" alt="TuneTracker Logo" class="logo" id="station-art">
+                <div id="current-track" aria-live="polite">Select a station</div>
+                <div id="playback-status" class="playback-status" aria-live="polite">Idle</div>
+                <div id="current-meta" class="current-meta" aria-live="polite"></div>
             </div>
         </div>
 
         <div class="controls">
-            <button class="control-btn" id="prev" onclick="playPreviousStation()">⏮</button>
-            <button class="control-btn" id="play">⏵</button>
-            <button class="control-btn" id="next" onclick="playNextStation()">⏭</button>
+            <button class="control-btn" id="prev" onclick="playPreviousStation()" aria-label="Play previous station">⏮</button>
+            <button class="control-btn" id="play" aria-label="Play or pause">⏵</button>
+            <button class="control-btn" id="next" onclick="playNextStation()" aria-label="Play next station">⏭</button>
         </div>
 
         <div class="volume-control">
-            <input type="range" class="volume-slider" id="volume" min="0" max="100" value="100">
+            <input type="range" class="volume-slider" id="volume" min="0" max="100" value="100" aria-label="Volume">
         </div>
 
-        <div class="back-btn">← BACK</div>
+        <div class="back-btn" role="button" tabindex="0">← BACK</div>
         
         <div class="search-container">
-            <input type="text" class="search-input" placeholder="Search stations..." id="searchInput">
+            <input type="text" class="search-input" placeholder="Search stations..." id="searchInput" aria-label="Search stations">
         </div>
 
         <div class="categories">
